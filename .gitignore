@@ -1,0 +1,41 @@
+# 二进制文件
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+ulm-class
+ulm-pkg
+
+# 测试文件
+*.test
+*.out
+coverage.txt
+
+# Go 工作区文件
+go.work
+
+# 依赖
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 生成的图表文件
+*.puml
+*.mmd
+*.drawio
+*.png
+*.svg
+
+# macOS
+.DS_Store
+
+# 临时文件
+tmp/
+*.tmp

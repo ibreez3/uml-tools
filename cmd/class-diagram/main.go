@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/xml"
 	"flag"
 	"fmt"
 	"go/ast"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -47,10 +49,24 @@ type MethodInfo struct {
 	Return string
 }
 
+// draw.io 类图元素
+type UmlClass struct {
+	ID       string
+	Name     string
+	Package  string
+	Fields   []string
+	Methods  []string
+	X        int
+	Y        int
+	Width    int
+	Height   int
+	IsInterface bool
+}
+
 func main() {
-	outputFile := flag.String("o", "classDiagram.puml", "输出文件路径")
+	outputFile := flag.String("o", "classDiagram.drawio", "输出文件路径")
 	title := flag.String("title", "Go Project Class Diagram", "图表标题")
-	format := flag.String("format", "plantuml", "输出格式：plantuml 或 mermaid")
+	format := flag.String("format", "plantuml", "输出格式：plantuml, mermaid, drawio")
 	flag.Parse()
 
 	rootDir := "."
@@ -235,9 +251,12 @@ func main() {
 	}
 
 	var output string
-	if *format == "mermaid" {
+	switch *format {
+	case "mermaid":
 		output = generateMermaid(packages, *title)
-	} else {
+	case "drawio":
+		output = generateDrawIO(packages, *title)
+	default:
 		output = generatePlantUML(packages, *title)
 	}
 
@@ -434,6 +453,178 @@ func generateMermaid(packages map[string]*PackageInfo, title string) string {
 		color := []string{"#ffdfb3", "#b3d9ff", "#b3ffb3", "#ffb3b3", "#d9b3ff"}[i%5]
 		sb.WriteString(fmt.Sprintf("    classDef %s fill:%s\n", sanitizeName(pkgName), color))
 	}
+
+	return sb.String()
+}
+
+func generateDrawIO(packages map[string]*PackageInfo, title string) string {
+	// 收集所有类
+	var classes []UmlClass
+	classID := 1
+
+	var pkgNames []string
+	for pkgName := range packages {
+		pkgNames = append(pkgNames, pkgName)
+	}
+	sort.Strings(pkgNames)
+
+	// 为每个包中的类分配位置
+	pkgY := 50
+	for _, pkgName := range pkgNames {
+		pkg := packages[pkgName]
+		if len(pkg.Structs) == 0 && len(pkg.Interfaces) == 0 {
+			continue
+		}
+
+		pkgX := 50
+		maxHeight := 0
+
+		// 添加结构体
+		for _, s := range pkg.Structs {
+			fields := make([]string, 0, len(s.Fields))
+			for _, f := range s.Fields {
+				if f.Name != "" {
+					fields = append(fields, fmt.Sprintf("%s : %s", f.Name, f.Type))
+				}
+			}
+
+			methods := make([]string, 0, len(s.Methods))
+			for _, m := range s.Methods {
+				methods = append(methods, fmt.Sprintf("+ %s(%s) : %s", m.Name, m.Params, m.Return))
+			}
+
+			height := 60 + len(fields)*14 + len(methods)*14
+			if height < 80 {
+				height = 80
+			}
+			if height > 300 {
+				height = 300
+			}
+
+			classes = append(classes, UmlClass{
+				ID:       strconv.Itoa(classID),
+				Name:     s.Name,
+				Package:  pkgName,
+				Fields:   fields,
+				Methods:  methods,
+				X:        pkgX,
+				Y:        pkgY,
+				Width:    200,
+				Height:   height,
+				IsInterface: false,
+			})
+
+			if height > maxHeight {
+				maxHeight = height
+			}
+
+			pkgX += 220
+			classID++
+		}
+
+		// 添加接口
+		for _, i := range pkg.Interfaces {
+			methods := make([]string, 0, len(i.Methods))
+			for _, m := range i.Methods {
+				methods = append(methods, fmt.Sprintf("<<interface>>\n+ %s(%s) : %s", m.Name, m.Params, m.Return))
+			}
+
+			height := 60 + len(methods)*14
+			if height < 80 {
+				height = 80
+			}
+
+			classes = append(classes, UmlClass{
+				ID:       strconv.Itoa(classID),
+				Name:     i.Name,
+				Package:  pkgName,
+				Fields:   []string{},
+				Methods:  methods,
+				X:        pkgX,
+				Y:        pkgY,
+				Width:    200,
+				Height:   height,
+				IsInterface: true,
+			})
+
+			if height > maxHeight {
+				maxHeight = height
+			}
+
+			pkgX += 220
+			classID++
+		}
+
+		pkgY += maxHeight + 100
+	}
+
+	// 生成 draw.io XML
+	return generateDrawIOXML(classes, title)
+}
+
+func generateDrawIOXML(classes []UmlClass, title string) string {
+	var sb strings.Builder
+
+	sb.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-03-09T14:00:00.000Z" agent="uml-tools" etag="umltools" version="22.1.0" type="device">
+  <diagram name="Class Diagram" id="class-diagram">
+    <mxGraphModel dx="1422" dy="793" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+`)
+
+	// 添加标题
+	sb.WriteString(fmt.Sprintf(`        <mxCell id="title" value="%s" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="400" y="10" width="400" height="30" as="geometry"/>
+        </mxCell>
+`, title))
+
+	// 添加类
+	for _, class := range classes {
+		// 构建 HTML 标签内容
+		var label strings.Builder
+		label.WriteString(fmt.Sprintf("<b>%s</b>", class.Name))
+		if class.IsInterface {
+			label.WriteString("<br/><i>&lt;&lt;interface&gt;&gt;</i>")
+		}
+		
+		if len(class.Fields) > 0 {
+			label.WriteString("<hr/>")
+			for _, f := range class.Fields {
+				label.WriteString(fmt.Sprintf("%s<br/>", f))
+			}
+		}
+		
+		if len(class.Methods) > 0 {
+			if len(class.Fields) == 0 {
+				label.WriteString("<hr/>")
+			}
+			for _, m := range class.Methods {
+				label.WriteString(fmt.Sprintf("%s<br/>", m))
+			}
+		}
+
+		style := "html=1;rounded=0;shadow=0;comic=0;labelBackgroundColor=#ffffff;strokeColor=#000000;strokeWidth=1;fillColor=#ffffff;gradientColor=#ffffff;fontSize=12;align=left;spacingLeft=5;spacingTop=-3;"
+		if class.IsInterface {
+			style = "html=1;rounded=0;shadow=0;comic=0;labelBackgroundColor=#ffffff;strokeColor=#000000;strokeWidth=1;fillColor=#f5f5f5;gradientColor=#b3d9ff;fontSize=12;align=left;spacingLeft=5;spacingTop=-3;"
+		}
+
+		sb.WriteString(fmt.Sprintf(`        <mxCell id="class_%s" value="%s" style="%s" vertex="1" parent="1">
+          <mxGeometry x="%d" y="%d" width="%d" height="%d" as="geometry"/>
+        </mxCell>
+`, class.ID, label.String(), style, class.X, class.Y, class.Width, class.Height))
+	}
+
+	// 添加包之间的关系（简单示例）
+	sb.WriteString(`        <!-- 关系线可以根据需要手动添加 -->
+`)
+
+	sb.WriteString(`      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
+`)
 
 	return sb.String()
 }

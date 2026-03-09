@@ -7,9 +7,9 @@
 
 ## ✨ 特性
 
-- 🎯 **类图生成** - 自动分析 Go 代码中的 struct 和 interface，生成 PlantUML/Mermaid 格式类图
+- 🎯 **类图生成** - 自动分析 Go 代码中的 struct 和 interface，生成 PlantUML/Mermaid/draw.io 格式类图
 - 📦 **包图生成** - 分析包之间的依赖关系，生成可视化包图
-- 🎨 **双格式支持** - 支持 PlantUML 和 Mermaid 两种格式
+- 🎨 **三格式支持** - 支持 PlantUML、Mermaid 和 draw.io (diagrams.net) 三种格式
 - 🚀 **零依赖** - 仅使用 Go 标准库，无需额外安装
 - 📊 **按包分类** - 类图使用 namespace 按包名分组显示
 
@@ -46,6 +46,9 @@ go install github.com/ibreez3/uml-tools/cmd/ulm-pkg@latest
 # 生成 Mermaid 格式
 ./ulm-class -format mermaid -o classDiagram.mmd /path/to/your/go-project
 
+# 生成 draw.io 格式
+./ulm-class -format drawio -o classDiagram.drawio /path/to/your/go-project
+
 # 自定义标题
 ./ulm-class -title "My Project Class Diagram" -o output.puml /path/to/project
 ```
@@ -59,6 +62,9 @@ go install github.com/ibreez3/uml-tools/cmd/ulm-pkg@latest
 # 生成 Mermaid 格式
 ./ulm-pkg -format mermaid -o packageDiagram.mmd /path/to/your/go-project
 
+# 生成 draw.io 格式
+./ulm-pkg -format drawio -o packageDiagram.drawio /path/to/your/go-project
+
 # 自定义标题
 ./ulm-pkg -title "My Project Package Diagram" -o output.puml /path/to/project
 ```
@@ -71,7 +77,7 @@ go install github.com/ibreez3/uml-tools/cmd/ulm-pkg@latest
 |------|------|--------|
 | `-o` | 输出文件路径 | classDiagram.puml |
 | `-title` | 图表标题 | Go Project Class Diagram |
-| `-format` | 输出格式：plantuml 或 mermaid | plantuml |
+| `-format` | 输出格式：plantuml / mermaid / drawio | plantuml |
 
 ### 包图工具 (ulm-pkg)
 
@@ -79,7 +85,7 @@ go install github.com/ibreez3/uml-tools/cmd/ulm-pkg@latest
 |------|------|--------|
 | `-o` | 输出文件路径 | packageDiagram.puml |
 | `-title` | 图表标题 | Go Project Package Diagram |
-| `-format` | 输出格式：plantuml 或 mermaid | plantuml |
+| `-format` | 输出格式：plantuml / mermaid / drawio | plantuml |
 
 ## 📊 输出示例
 
@@ -160,6 +166,12 @@ service ..> model : imports
 - **GitHub/GitLab**: 原生支持 Mermaid 代码块
 - **Notion**: 原生支持 Mermaid
 - **VS Code 插件**: [Markdown Preview Mermaid Support](https://marketplace.visualstudio.com/items?itemName=bierner.markdown-mermaid)
+
+### draw.io (diagrams.net)
+
+- **在线查看**: [diagrams.net](https://app.diagrams.net/)
+- **桌面应用**: [draw.io Desktop](https://github.com/jgraph/drawio-desktop/releases)
+- **使用方法**: 打开 draw.io → 选择 "设备" → 打开 `.drawio` 文件
 
 ## 📁 项目结构
 

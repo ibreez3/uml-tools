@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -23,9 +24,9 @@ type PackageNode struct {
 }
 
 func main() {
-	outputFile := flag.String("o", "packageDiagram.puml", "输出文件路径")
+	outputFile := flag.String("o", "packageDiagram.drawio", "输出文件路径")
 	title := flag.String("title", "Go Project Package Diagram", "图表标题")
-	format := flag.String("format", "plantuml", "输出格式：plantuml 或 mermaid")
+	format := flag.String("format", "plantuml", "输出格式：plantuml, mermaid, drawio")
 	flag.Parse()
 
 	rootDir := "."
@@ -121,9 +122,12 @@ func main() {
 	}
 
 	var output string
-	if *format == "mermaid" {
+	switch *format {
+	case "mermaid":
 		output = generateMermaid(packages, moduleName, *title)
-	} else {
+	case "drawio":
+		output = generateDrawIO(packages, moduleName, *title)
+	default:
 		output = generatePlantUML(packages, moduleName, *title)
 	}
 
@@ -246,6 +250,152 @@ func generateMermaid(packages map[string]*PackageNode, moduleName, title string)
 	}
 
 	return sb.String()
+}
+
+// draw.io 包节点
+type PackageNodeDrawIO struct {
+	ID         string
+	Name       string
+	Structs    int
+	Interfaces int
+	Functions  int
+	X          int
+	Y          int
+	Width      int
+	Height     int
+}
+
+func generateDrawIO(packages map[string]*PackageNode, moduleName, title string) string {
+	var pkgNodes []PackageNodeDrawIO
+	nodeID := 1
+
+	var pkgPaths []string
+	for path := range packages {
+		pkgPaths = append(pkgPaths, path)
+	}
+	sort.Strings(pkgPaths)
+
+	// 计算布局
+	pkgX := 50
+	pkgY := 80
+	columns := 4
+	colWidth := 250
+	rowHeight := 150
+
+	for i, path := range pkgPaths {
+		pkg := packages[path]
+		displayName := filepath.Base(path)
+		if path == "." {
+			displayName = "root"
+		}
+
+		col := i % columns
+		row := i / columns
+
+		pkgNodes = append(pkgNodes, PackageNodeDrawIO{
+			ID:         strconv.Itoa(nodeID),
+			Name:       displayName,
+			Structs:    pkg.Structs,
+			Interfaces: pkg.Interfaces,
+			Functions:  pkg.Functions,
+			X:          50 + col*colWidth,
+			Y:          80 + row*rowHeight,
+			Width:      200,
+			Height:     100,
+		})
+		nodeID++
+	}
+
+	return generatePackageDrawIOXML(pkgNodes, packages, moduleName, title)
+}
+
+func generatePackageDrawIOXML(pkgNodes []PackageNodeDrawIO, packages map[string]*PackageNode, moduleName, title string) string {
+	var sb strings.Builder
+
+	sb.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-03-09T14:00:00.000Z" agent="uml-tools" etag="umltools" version="22.1.0" type="device">
+  <diagram name="Package Diagram" id="package-diagram">
+    <mxGraphModel dx="1422" dy="793" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+`)
+
+	// 添加标题
+	sb.WriteString(fmt.Sprintf(`        <mxCell id="title" value="%s" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="400" y="10" width="400" height="30" as="geometry"/>
+        </mxCell>
+`, title))
+
+	// 添加包节点
+	for _, pkg := range pkgNodes {
+		label := fmt.Sprintf("&lt;b&gt;%s&lt;/b&gt;&lt;hr/&gt;%d struct(s)&lt;br/&gt;%d interface(s)&lt;br/&gt;%d func(s)",
+			pkg.Name, pkg.Structs, pkg.Interfaces, pkg.Functions)
+
+		sb.WriteString(fmt.Sprintf(`        <mxCell id="pkg_%s" value="%s" style="shape=rectangle;rounded=1;html=1;whiteSpace=wrap;labelBackgroundColor=#ffffff;strokeColor=#000000;strokeWidth=1;fillColor=#ffffff;gradientColor=#ffffff;fontSize=12;align=left;spacingLeft=5;" vertex="1" parent="1">
+          <mxGeometry x="%d" y="%d" width="%d" height="%d" as="geometry"/>
+        </mxCell>
+`, pkg.ID, label, pkg.X, pkg.Y, pkg.Width, pkg.Height))
+	}
+
+	// 添加依赖关系
+	sb.WriteString(`        <!-- 依赖关系 -->
+`)
+
+	edgeID := 1000
+	seen := make(map[string]bool)
+	for _, path := range getSortedKeys(packages) {
+		pkg := packages[path]
+		for _, imp := range pkg.Imports {
+			relImp := strings.TrimPrefix(imp, moduleName+"/")
+			if _, exists := packages[relImp]; exists {
+				key := path + "->" + relImp
+				if !seen[key] {
+					seen[key] = true
+					// 找到源和目标节点 ID
+					sourceID := getNodeID(pkgNodes, path)
+					targetID := getNodeID(pkgNodes, relImp)
+					if sourceID != "" && targetID != "" {
+						sb.WriteString(fmt.Sprintf(`        <mxCell id="edge_%d" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;jettySize=auto;orthogonalLoop=1;" edge="1" parent="1" source="pkg_%s" target="pkg_%s">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+`, edgeID, sourceID, targetID))
+						edgeID++
+					}
+				}
+			}
+		}
+	}
+
+	sb.WriteString(`      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
+`)
+
+	return sb.String()
+}
+
+func getNodeID(nodes []PackageNodeDrawIO, path string) string {
+	name := filepath.Base(path)
+	if path == "." {
+		name = "root"
+	}
+	for _, node := range nodes {
+		if node.Name == name {
+			return node.ID
+		}
+	}
+	return ""
+}
+
+func getSortedKeys(m map[string]*PackageNode) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func sanitizeName(name string) string {
