@@ -5,6 +5,7 @@ bin/
 *.dll
 *.so
 *.dylib
+ulm-tools
 ulm-class
 ulm-pkg
 

@@ -1,8 +1,7 @@
-package main
+package diagram
 
 import (
 	"encoding/xml"
-	"flag"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -49,31 +48,8 @@ type MethodInfo struct {
 	Return string
 }
 
-// draw.io 类图元素
-type UmlClass struct {
-	ID       string
-	Name     string
-	Package  string
-	Fields   []string
-	Methods  []string
-	X        int
-	Y        int
-	Width    int
-	Height   int
-	IsInterface bool
-}
-
-func main() {
-	outputFile := flag.String("o", "classDiagram.drawio", "输出文件路径")
-	title := flag.String("title", "Go Project Class Diagram", "图表标题")
-	format := flag.String("format", "plantuml", "输出格式：plantuml, mermaid, drawio")
-	flag.Parse()
-
-	rootDir := "."
-	if len(flag.Args()) > 0 {
-		rootDir = flag.Args()[0]
-	}
-
+// GenerateClassDiagram 生成类图
+func GenerateClassDiagram(rootDir, outputFile, title, format string) error {
 	fmt.Printf("🔍 开始分析项目：%s\n", filepath.Abs(rootDir))
 
 	packages := make(map[string]*PackageInfo)
@@ -97,7 +73,6 @@ func main() {
 		fset := token.NewFileSet()
 		file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
 		if err != nil {
-			fmt.Printf("⚠️  解析失败 %s: %v\n", path, err)
 			return nil
 		}
 
@@ -246,28 +221,26 @@ func main() {
 	})
 
 	if err != nil {
-		fmt.Printf("❌ 遍历目录失败：%v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("遍历目录失败：%w", err)
 	}
 
 	var output string
-	switch *format {
+	switch format {
 	case "mermaid":
-		output = generateMermaid(packages, *title)
+		output = generateMermaidClass(packages, title)
 	case "drawio":
-		output = generateDrawIO(packages, *title)
+		output = generateDrawIOClass(packages, title)
 	default:
-		output = generatePlantUML(packages, *title)
+		output = generatePlantUMLClass(packages, title)
 	}
 
-	err = os.WriteFile(*outputFile, []byte(output), 0644)
+	err = os.WriteFile(outputFile, []byte(output), 0644)
 	if err != nil {
-		fmt.Printf("❌ 写入文件失败：%v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("写入文件失败：%w", err)
 	}
 
 	fmt.Printf("✅ 生成成功！\n")
-	fmt.Printf("📄 输出文件：%s\n", *outputFile)
+	fmt.Printf("📄 输出文件：%s\n", outputFile)
 	fmt.Printf("📊 共分析 %d 个包\n", len(packages))
 
 	totalStructs := 0
@@ -277,6 +250,8 @@ func main() {
 		totalInterfaces += len(pkg.Interfaces)
 	}
 	fmt.Printf("📦 发现 %d 个结构体，%d 个接口\n", totalStructs, totalInterfaces)
+
+	return nil
 }
 
 func formatType(expr ast.Expr) string {
@@ -336,7 +311,7 @@ func formatFuncType(funcType *ast.FuncType) (params string, returns string) {
 	return
 }
 
-func generatePlantUML(packages map[string]*PackageInfo, title string) string {
+func generatePlantUMLClass(packages map[string]*PackageInfo, title string) string {
 	var sb strings.Builder
 
 	sb.WriteString("@startuml\n")
@@ -408,7 +383,7 @@ func generatePlantUML(packages map[string]*PackageInfo, title string) string {
 	return sb.String()
 }
 
-func generateMermaid(packages map[string]*PackageInfo, title string) string {
+func generateMermaidClass(packages map[string]*PackageInfo, title string) string {
 	var sb strings.Builder
 
 	sb.WriteString("%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffdfb3', 'edgeLabelBackground':'#fff'}}}%%\n")
@@ -457,8 +432,21 @@ func generateMermaid(packages map[string]*PackageInfo, title string) string {
 	return sb.String()
 }
 
-func generateDrawIO(packages map[string]*PackageInfo, title string) string {
-	// 收集所有类
+// draw.io 类图元素
+type UmlClass struct {
+	ID            string
+	Name          string
+	Package       string
+	Fields        []string
+	Methods       []string
+	X             int
+	Y             int
+	Width         int
+	Height        int
+	IsInterface   bool
+}
+
+func generateDrawIOClass(packages map[string]*PackageInfo, title string) string {
 	var classes []UmlClass
 	classID := 1
 
@@ -468,7 +456,6 @@ func generateDrawIO(packages map[string]*PackageInfo, title string) string {
 	}
 	sort.Strings(pkgNames)
 
-	// 为每个包中的类分配位置
 	pkgY := 50
 	for _, pkgName := range pkgNames {
 		pkg := packages[pkgName]
@@ -479,7 +466,6 @@ func generateDrawIO(packages map[string]*PackageInfo, title string) string {
 		pkgX := 50
 		maxHeight := 0
 
-		// 添加结构体
 		for _, s := range pkg.Structs {
 			fields := make([]string, 0, len(s.Fields))
 			for _, f := range s.Fields {
@@ -502,15 +488,15 @@ func generateDrawIO(packages map[string]*PackageInfo, title string) string {
 			}
 
 			classes = append(classes, UmlClass{
-				ID:       strconv.Itoa(classID),
-				Name:     s.Name,
-				Package:  pkgName,
-				Fields:   fields,
-				Methods:  methods,
-				X:        pkgX,
-				Y:        pkgY,
-				Width:    200,
-				Height:   height,
+				ID:          strconv.Itoa(classID),
+				Name:        s.Name,
+				Package:     pkgName,
+				Fields:      fields,
+				Methods:     methods,
+				X:           pkgX,
+				Y:           pkgY,
+				Width:       200,
+				Height:      height,
 				IsInterface: false,
 			})
 
@@ -522,7 +508,6 @@ func generateDrawIO(packages map[string]*PackageInfo, title string) string {
 			classID++
 		}
 
-		// 添加接口
 		for _, i := range pkg.Interfaces {
 			methods := make([]string, 0, len(i.Methods))
 			for _, m := range i.Methods {
@@ -535,15 +520,15 @@ func generateDrawIO(packages map[string]*PackageInfo, title string) string {
 			}
 
 			classes = append(classes, UmlClass{
-				ID:       strconv.Itoa(classID),
-				Name:     i.Name,
-				Package:  pkgName,
-				Fields:   []string{},
-				Methods:  methods,
-				X:        pkgX,
-				Y:        pkgY,
-				Width:    200,
-				Height:   height,
+				ID:          strconv.Itoa(classID),
+				Name:        i.Name,
+				Package:     pkgName,
+				Fields:      []string{},
+				Methods:     methods,
+				X:           pkgX,
+				Y:           pkgY,
+				Width:       200,
+				Height:      height,
 				IsInterface: true,
 			})
 
@@ -558,11 +543,10 @@ func generateDrawIO(packages map[string]*PackageInfo, title string) string {
 		pkgY += maxHeight + 100
 	}
 
-	// 生成 draw.io XML
-	return generateDrawIOXML(classes, title)
+	return generateDrawIOClassXML(classes, title)
 }
 
-func generateDrawIOXML(classes []UmlClass, title string) string {
+func generateDrawIOClassXML(classes []UmlClass, title string) string {
 	var sb strings.Builder
 
 	sb.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
@@ -574,15 +558,12 @@ func generateDrawIOXML(classes []UmlClass, title string) string {
         <mxCell id="1" parent="0"/>
 `)
 
-	// 添加标题
 	sb.WriteString(fmt.Sprintf(`        <mxCell id="title" value="%s" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1" vertex="1" parent="1">
           <mxGeometry x="400" y="10" width="400" height="30" as="geometry"/>
         </mxCell>
 `, title))
 
-	// 添加类
 	for _, class := range classes {
-		// 构建 HTML 标签内容
 		var label strings.Builder
 		label.WriteString(fmt.Sprintf("<b>%s</b>", class.Name))
 		if class.IsInterface {
@@ -615,10 +596,6 @@ func generateDrawIOXML(classes []UmlClass, title string) string {
         </mxCell>
 `, class.ID, label.String(), style, class.X, class.Y, class.Width, class.Height))
 	}
-
-	// 添加包之间的关系（简单示例）
-	sb.WriteString(`        <!-- 关系线可以根据需要手动添加 -->
-`)
 
 	sb.WriteString(`      </root>
     </mxGraphModel>

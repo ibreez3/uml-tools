@@ -1,7 +1,6 @@
-package main
+package diagram
 
 import (
-	"flag"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -23,17 +22,8 @@ type PackageNode struct {
 	Functions  int
 }
 
-func main() {
-	outputFile := flag.String("o", "packageDiagram.drawio", "输出文件路径")
-	title := flag.String("title", "Go Project Package Diagram", "图表标题")
-	format := flag.String("format", "plantuml", "输出格式：plantuml, mermaid, drawio")
-	flag.Parse()
-
-	rootDir := "."
-	if len(flag.Args()) > 0 {
-		rootDir = flag.Args()[0]
-	}
-
+// GeneratePackageDiagram 生成包图
+func GeneratePackageDiagram(rootDir, outputFile, title, format string) error {
 	fmt.Printf("🔍 开始分析项目：%s\n", filepath.Abs(rootDir))
 
 	packages := make(map[string]*PackageNode)
@@ -117,29 +107,29 @@ func main() {
 	})
 
 	if err != nil {
-		fmt.Printf("❌ 遍历目录失败：%v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("遍历目录失败：%w", err)
 	}
 
 	var output string
-	switch *format {
+	switch format {
 	case "mermaid":
-		output = generateMermaid(packages, moduleName, *title)
+		output = generateMermaidPackage(packages, moduleName, title)
 	case "drawio":
-		output = generateDrawIO(packages, moduleName, *title)
+		output = generateDrawIOPackage(packages, moduleName, title)
 	default:
-		output = generatePlantUML(packages, moduleName, *title)
+		output = generatePlantUMLPackage(packages, moduleName, title)
 	}
 
-	err = os.WriteFile(*outputFile, []byte(output), 0644)
+	err = os.WriteFile(outputFile, []byte(output), 0644)
 	if err != nil {
-		fmt.Printf("❌ 写入文件失败：%v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("写入文件失败：%w", err)
 	}
 
 	fmt.Printf("✅ 生成成功！\n")
-	fmt.Printf("📄 输出文件：%s\n", *outputFile)
+	fmt.Printf("📄 输出文件：%s\n", outputFile)
 	fmt.Printf("📊 共分析 %d 个包\n", len(packages))
+
+	return nil
 }
 
 func getModuleName(rootDir string) string {
@@ -157,7 +147,7 @@ func getModuleName(rootDir string) string {
 	return ""
 }
 
-func generatePlantUML(packages map[string]*PackageNode, moduleName, title string) string {
+func generatePlantUMLPackage(packages map[string]*PackageNode, moduleName, title string) string {
 	var sb strings.Builder
 
 	sb.WriteString("@startuml\n")
@@ -208,7 +198,7 @@ func generatePlantUML(packages map[string]*PackageNode, moduleName, title string
 	return sb.String()
 }
 
-func generateMermaid(packages map[string]*PackageNode, moduleName, title string) string {
+func generateMermaidPackage(packages map[string]*PackageNode, moduleName, title string) string {
 	var sb strings.Builder
 
 	sb.WriteString("%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffdfb3', 'edgeLabelBackground':'#fff', 'tertiaryColor': '#fff5e6'}}}%%\n")
@@ -252,7 +242,7 @@ func generateMermaid(packages map[string]*PackageNode, moduleName, title string)
 	return sb.String()
 }
 
-// draw.io 包节点
+// PackageNodeDrawIO draw.io 包节点
 type PackageNodeDrawIO struct {
 	ID         string
 	Name       string
@@ -265,7 +255,7 @@ type PackageNodeDrawIO struct {
 	Height     int
 }
 
-func generateDrawIO(packages map[string]*PackageNode, moduleName, title string) string {
+func generateDrawIOPackage(packages map[string]*PackageNode, moduleName, title string) string {
 	var pkgNodes []PackageNodeDrawIO
 	nodeID := 1
 
@@ -275,12 +265,9 @@ func generateDrawIO(packages map[string]*PackageNode, moduleName, title string) 
 	}
 	sort.Strings(pkgPaths)
 
-	// 计算布局
-	pkgX := 50
-	pkgY := 80
-	columns := 4
 	colWidth := 250
 	rowHeight := 150
+	columns := 4
 
 	for i, path := range pkgPaths {
 		pkg := packages[path]
@@ -321,13 +308,11 @@ func generatePackageDrawIOXML(pkgNodes []PackageNodeDrawIO, packages map[string]
         <mxCell id="1" parent="0"/>
 `)
 
-	// 添加标题
 	sb.WriteString(fmt.Sprintf(`        <mxCell id="title" value="%s" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1" vertex="1" parent="1">
           <mxGeometry x="400" y="10" width="400" height="30" as="geometry"/>
         </mxCell>
 `, title))
 
-	// 添加包节点
 	for _, pkg := range pkgNodes {
 		label := fmt.Sprintf("&lt;b&gt;%s&lt;/b&gt;&lt;hr/&gt;%d struct(s)&lt;br/&gt;%d interface(s)&lt;br/&gt;%d func(s)",
 			pkg.Name, pkg.Structs, pkg.Interfaces, pkg.Functions)
@@ -338,7 +323,6 @@ func generatePackageDrawIOXML(pkgNodes []PackageNodeDrawIO, packages map[string]
 `, pkg.ID, label, pkg.X, pkg.Y, pkg.Width, pkg.Height))
 	}
 
-	// 添加依赖关系
 	sb.WriteString(`        <!-- 依赖关系 -->
 `)
 
@@ -352,7 +336,6 @@ func generatePackageDrawIOXML(pkgNodes []PackageNodeDrawIO, packages map[string]
 				key := path + "->" + relImp
 				if !seen[key] {
 					seen[key] = true
-					// 找到源和目标节点 ID
 					sourceID := getNodeID(pkgNodes, path)
 					targetID := getNodeID(pkgNodes, relImp)
 					if sourceID != "" && targetID != "" {

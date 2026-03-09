@@ -7,71 +7,65 @@
 
 ## ✨ 特性
 
-- 🎯 **类图生成** - 自动分析 Go 代码中的 struct 和 interface，生成 PlantUML/Mermaid/draw.io 格式类图
-- 📦 **包图生成** - 分析包之间的依赖关系，生成可视化包图
-- 🎨 **三格式支持** - 支持 PlantUML、Mermaid 和 draw.io (diagrams.net) 三种格式
-- 🚀 **零依赖** - 仅使用 Go 标准库，无需额外安装
+- 🎯 **类图生成** - 自动分析 Go 代码中的 struct 和 interface
+- 📦 **包图生成** - 分析包之间的依赖关系
+- 🎨 **三格式支持** - PlantUML、Mermaid、draw.io (diagrams.net)
+- 🚀 **零依赖** - 仅使用 Go 标准库
 - 📊 **按包分类** - 类图使用 namespace 按包名分组显示
 
 ## 📦 安装
-
-### 方式一：从源码编译
 
 ```bash
 git clone git@github.com:ibreez3/uml-tools.git
 cd uml-tools
 
-# 编译类图工具
-go build -o ulm-class ./cmd/class-diagram
-
-# 编译包图工具
-go build -o ulm-pkg ./cmd/package-diagram
-```
-
-### 方式二：使用 go install
-
-```bash
-go install github.com/ibreez3/uml-tools/cmd/ulm-class@latest
-go install github.com/ibreez3/uml-tools/cmd/ulm-pkg@latest
+# 编译
+go build -o bin/uml-tools ./cmd/ulm-tools
 ```
 
 ## 🚀 使用方法
 
-### 类图生成
+### 统一命令格式
 
 ```bash
-# 生成 PlantUML 格式（默认）
-./ulm-class -o classDiagram.puml /path/to/your/go-project
-
-# 生成 Mermaid 格式
-./ulm-class -format mermaid -o classDiagram.mmd /path/to/your/go-project
-
-# 生成 draw.io 格式
-./ulm-class -format drawio -o classDiagram.drawio /path/to/your/go-project
-
-# 自定义标题
-./ulm-class -title "My Project Class Diagram" -o output.puml /path/to/project
+uml-tools <command> [options] <project-path>
 ```
 
-### 包图生成
+### 生成类图
 
 ```bash
-# 生成 PlantUML 格式（默认）
-./ulm-pkg -o packageDiagram.puml /path/to/your/go-project
+# PlantUML 格式
+uml-tools class -o classDiagram.puml /path/to/project
 
-# 生成 Mermaid 格式
-./ulm-pkg -format mermaid -o packageDiagram.mmd /path/to/your/go-project
+# Mermaid 格式
+uml-tools class -format mermaid -o classDiagram.mmd /path/to/project
 
-# 生成 draw.io 格式
-./ulm-pkg -format drawio -o packageDiagram.drawio /path/to/your/go-project
+# draw.io 格式
+uml-tools class -format drawio -o classDiagram.drawio /path/to/project
 
 # 自定义标题
-./ulm-pkg -title "My Project Package Diagram" -o output.puml /path/to/project
+uml-tools class -title "My Class Diagram" -format drawio -o output.drawio /path/to/project
+```
+
+### 生成包图
+
+```bash
+# PlantUML 格式
+uml-tools pkg -o packageDiagram.puml /path/to/project
+
+# Mermaid 格式
+uml-tools pkg -format mermaid -o packageDiagram.mmd /path/to/project
+
+# draw.io 格式
+uml-tools pkg -format drawio -o packageDiagram.drawio /path/to/project
+
+# 自定义标题
+uml-tools pkg -title "My Package Diagram" -format drawio -o output.drawio /path/to/project
 ```
 
 ## 📋 命令行参数
 
-### 类图工具 (ulm-class)
+### 类图 (class)
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
@@ -79,7 +73,7 @@ go install github.com/ibreez3/uml-tools/cmd/ulm-pkg@latest
 | `-title` | 图表标题 | Go Project Class Diagram |
 | `-format` | 输出格式：plantuml / mermaid / drawio | plantuml |
 
-### 包图工具 (ulm-pkg)
+### 包图 (pkg)
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
@@ -87,101 +81,34 @@ go install github.com/ibreez3/uml-tools/cmd/ulm-pkg@latest
 | `-title` | 图表标题 | Go Project Package Diagram |
 | `-format` | 输出格式：plantuml / mermaid / drawio | plantuml |
 
-## 📊 输出示例
-
-### 类图 (PlantUML)
-
-```plantuml
-@startuml
-title Go Project Class Diagram
-skinparam namespaceSeparator ::
-
-namespace api.handler {
-    class UserHandler {
-        + userService *UserService
-        + CreateUser(w http.ResponseWriter, r *http.Request)
-        + GetUser(w http.ResponseWriter, r *http.Request)
-    }
-}
-
-namespace service {
-    class UserService {
-        - userRepo *UserRepository
-        + GetUserByID(id int64) (*User, error)
-        + CreateUser(user *User) error
-    }
-}
-
-namespace model {
-    class User {
-        + ID int64
-        + Name string
-        + Email string
-    }
-}
-@enduml
-```
-
-### 包图 (PlantUML)
-
-```plantuml
-@startuml
-title Go Project Package Diagram
-skinparam packageStyle rectangle
-
-package "api" as api {
-  [5 struct(s)
-   2 interface(s)
-   10 func(s)]
-}
-
-package "service" as service {
-  [3 struct(s)
-   1 interface(s)
-   8 func(s)]
-}
-
-package "model" as model {
-  [8 struct(s)
-   0 interface(s)
-   0 func(s)]
-}
-
-api ..> service : imports
-service ..> model : imports
-@enduml
-```
-
-## 🔍 查看生成的图表
+## 📊 输出格式
 
 ### PlantUML
-
-- **在线查看**: [PlantText](https://www.planttext.com/)
-- **VS Code 插件**: [PlantUML](https://marketplace.visualstudio.com/items?itemName=jebbs.plantuml)
-- **命令行渲染**: `plantuml classDiagram.puml`
+- 文件扩展名：`.puml`
+- 在线查看：https://www.planttext.com/
+- VS Code 插件：PlantUML
 
 ### Mermaid
+- 文件扩展名：`.mmd`
+- 在线查看：https://mermaid.live/
+- GitHub/Notion 原生支持
 
-- **在线查看**: [Mermaid Live Editor](https://mermaid.live/)
-- **GitHub/GitLab**: 原生支持 Mermaid 代码块
-- **Notion**: 原生支持 Mermaid
-- **VS Code 插件**: [Markdown Preview Mermaid Support](https://marketplace.visualstudio.com/items?itemName=bierner.markdown-mermaid)
-
-### draw.io (diagrams.net)
-
-- **在线查看**: [diagrams.net](https://app.diagrams.net/)
-- **桌面应用**: [draw.io Desktop](https://github.com/jgraph/drawio-desktop/releases)
-- **使用方法**: 打开 draw.io → 选择 "设备" → 打开 `.drawio` 文件
+### draw.io
+- 文件扩展名：`.drawio`
+- 在线查看：https://app.diagrams.net/
+- 可编辑的 XML 格式
 
 ## 📁 项目结构
 
 ```
 uml-tools/
 ├── cmd/
-│   ├── class-diagram/     # 类图生成器
-│   │   └── main.go
-│   └── package-diagram/   # 包图生成器
+│   └── ulm-tools/       # 统一命令行工具
 │       └── main.go
+├── internal/
+│   └── diagram/         # 核心生成逻辑
+│       ├── class.go     # 类图生成
+│       └── package.go   # 包图生成
 ├── go.mod
 ├── README.md
 └── LICENSE
@@ -197,24 +124,24 @@ uml-tools/
 
 2. **类图关系**: 自动生成的关系基于字段类型，复杂关系需手动补充
 
-3. **包图依赖**: 仅显示项目内部包之间的依赖，不显示外部依赖
+3. **包图依赖**: 仅显示项目内部包之间的依赖
 
 ## 🛠️ 开发
 
 ```bash
-# 运行测试（如果有）
-go test ./...
-
 # 格式化代码
 go fmt ./...
 
-# 编译所有工具
-go build ./cmd/...
+# 编译
+go build -o bin/uml-tools ./cmd/ulm-tools
+
+# 安装到 GOPATH
+go install ./cmd/ulm-tools
 ```
 
 ## 📝 License
 
-MIT License - 详见 [LICENSE](LICENSE) 文件
+MIT License
 
 ## 🤝 贡献
 
